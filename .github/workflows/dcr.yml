@@ -3,7 +3,7 @@ name: Daily Commit Report
 on:
   schedule:
   - cron: '00 18 * * *'  # Ejecuta todos los días a las 11:59:59 PM UTC
-
+  workflow_dispatch:  # Permite ejecución manual desde GitHub Actions
 jobs:
   check_commits:
     runs-on: ubuntu-latest
