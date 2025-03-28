@@ -2,7 +2,7 @@ name: Daily Commit Report
 
 on:
   schedule:
-    - cron: '50 17 * * *'  # Ejecuta todos los días a las 11:59:59 PM UTC
+  - cron: '00 18 * * *'  # Ejecuta todos los días a las 11:59:59 PM UTC
 
 jobs:
   check_commits:
@@ -26,8 +26,9 @@ jobs:
           for i in "${!USERS[@]}"; do
             USERNAME="${USERS[$i]}"
             EMAIL="${EMAILS[$i]}"
-            COUNT=$(git log --since="$TODAY 00:00" --until="$TODAY 17:50" --author="$USERNAME" --pretty=oneline | wc -l)
-            
+
+            COUNT=$(git log --since="$TODAY 00:00" --until="$TODAY 18:00" --author="$USERNAME" --pretty=oneline | wc -l)
+
             if [ "$COUNT" -gt 0 ]; then
               REPORT+="✅ $USERNAME (${EMAIL}) **subió cambios** ($COUNT commits)\n"
               COMMITTED_USERS+=("$USERNAME")
