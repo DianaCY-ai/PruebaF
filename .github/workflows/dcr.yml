@@ -2,7 +2,7 @@ name: Daily Commit Report
 
 on:
   schedule:
-    - cron: '59 23 * * *'  # Ejecuta todos los días a las 11:59:59 PM UTC
+    - cron: '25 16 * * *'  # Ejecuta todos los días a las 11:59:59 PM UTC
 
 jobs:
   check_commits:
