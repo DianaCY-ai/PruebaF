@@ -1,0 +1,54 @@
+name: Daily Commit Report
+
+on:
+  schedule:
+    - cron: '59 23 * * *'  # Ejecuta todos los días a las 11:59:59 PM UTC
+
+jobs:
+  check_commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Clonar el repositorio
+        uses: actions/checkout@v3
+
+      - name: 🛠 Configurar Git
+        run: |
+          git fetch --all
+
+      - name: 📊 Verificar commits del día
+        run: |
+          TODAY=$(date -u +"%Y-%m-%d")
+          USERS=("DianaCY-ai" "Dihani")
+          EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
+          COMMITTED_USERS=()
+          REPORT="🔍 **Reporte de Commits - $TODAY**\n\n"
+
+          for i in "${!USERS[@]}"; do
+            USERNAME="${USERS[$i]}"
+            EMAIL="${EMAILS[$i]}"
+            COUNT=$(git log --since="$TODAY 00:00" --until="$TODAY 23:59" --author="$USERNAME" --pretty=oneline | wc -l)
+            
+            if [ "$COUNT" -gt 0 ]; then
+              REPORT+="✅ $USERNAME (${EMAIL}) **subió cambios** ($COUNT commits)\n"
+              COMMITTED_USERS+=("$USERNAME")
+            else
+              REPORT+="❌ $USERNAME (${EMAIL}) **NO subió cambios**\n"
+            fi
+          done
+
+          echo -e "$REPORT" > commit_report.txt
+          cat commit_report.txt
+
+      - name: 📧 Enviar reporte por correo
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.office365.com
+          server_port: 587
+          username: diana.carrasco@inetum.com
+          password: ${{ secrets.OUTLOOK_PASSWORD }}
+          subject: "📢 Reporte Diario de Commits"
+          body: file://commit_report.txt
+          to: diana.carrasco@inetum.com
+          from: "GitHub Actions <diana.carrasco@inetum.com>"
+          content_type: text/plain
+
