@@ -52,6 +52,6 @@ jobs:
           password: ${{ secrets.GMAIL_PASSWORD }}
           subject: "📢 Reporte de commits diarios - ${{ env.TODAY }}"
           body: ${{ env.commit_report }}
-          to: diana.carrasco@inetum.com, devdes673@gmail.com
+          to: diana.carrasco@inetum.com, devdes673@gmail.com, goyko.obrenovich@inetum.com
           from: "Reporte de GitHub <dihani.cy@gmail.com>"
 
