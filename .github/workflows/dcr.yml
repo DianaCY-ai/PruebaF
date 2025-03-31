@@ -43,13 +43,13 @@ jobs:
       - name: 📧 Enviar reporte por correo
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: smtp.office365.com
+          server_address: smtp.gmail.com
           server_port: 587
-          username: diana.carrasco@inetum.com
-          password: ${{ secrets.OUTLOOK_PASSWORD }}
-          subject: "📢 Reporte Diario de Commits"
-          body: file://commit_report.txt
-          to: diana.carrasco@inetum.com
-          from: "GitHub Actions <diana.carrasco@inetum.com>"
+          username: devdes673@gmail.com
+          password: ${{ secrets.GMAIL_PASSWORD }}
+          subject: "📢 Reporte de commits diarios"
+          body: "Aquí está el informe de quién subió código hoy."
+          to: diana.carrasco@inetum.com, ABELOLA@inetum.com
+          from: "Reporte de GitHub <devdes673@gmail.com>"
           content_type: text/plain
 
