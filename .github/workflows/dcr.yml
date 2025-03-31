@@ -2,8 +2,9 @@ name: Daily Commit Report
 
 on:
   schedule:
-  - cron: '00 18 * * *'  # Ejecuta todos los días a las 11:59:59 PM UTC
+    - cron: '00 18 * * *'  # Ejecuta todos los días a las 18:00 UTC (hora configurada)
   workflow_dispatch:  # Permite ejecución manual desde GitHub Actions
+
 jobs:
   check_commits:
     runs-on: ubuntu-latest
@@ -38,7 +39,9 @@ jobs:
           done
 
           echo -e "$REPORT" > commit_report.txt
-          cat commit_report.txt
+          echo "commit_report<<EOF" >> $GITHUB_ENV
+          cat commit_report.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: 📧 Enviar reporte por correo
         uses: dawidd6/action-send-mail@v3
@@ -47,8 +50,8 @@ jobs:
           server_port: 587
           username: dihani.cy@gmail.com
           password: ${{ secrets.GMAIL_PASSWORD }}
-          subject: "📢 Reporte de commits diarios"
-          body: "Aquí está el informe de quién subió código hoy."
+          subject: "📢 Reporte de commits diarios - ${{ env.TODAY }}"
+          body: ${{ env.commit_report }}
           to: diana.carrasco@inetum.com, devdes673@gmail.com
           from: "Reporte de GitHub <dihani.cy@gmail.com>"
 
