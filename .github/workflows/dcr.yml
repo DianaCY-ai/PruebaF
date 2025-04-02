@@ -1,95 +1,132 @@
 name: Daily Commit Report
 
 on:
-   schedule:
-     - cron: '00 18 * * *'  # Ejecuta todos los días a las 18:00 UTC (hora configurada)
-   workflow_dispatch:  # Permite ejecución manual desde GitHub Actions
- 
+  schedule:
+    # Se ejecuta a las 23:59:59 hora de Perú (UTC-5) que equivale a 04:59:59 UTC
+    - cron: '59 4 * * *'
+  workflow_dispatch:  # Permite ejecución manual desde GitHub Actions
+
 jobs:
-   check_commits:
-     runs-on: ubuntu-latest
-     steps:
-       - name: 📥 Clonar el repositorio
-         uses: actions/checkout@v3
- 
-       - name: 🛠 Configurar Git
-         run: |
-           git fetch --all
- 
-       - name: 📊 Generar reporte detallado de commits por dia
-         run: |
-           TODAY=$(date -u +"%Y-%m-%d")
-           USERS=("DianaCY-ai" "Dihani")
-           EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
-           COMMITTED_USERS=()
-           REPORT="""<html>
-            <head>
-            <style>
-              body { font-family: Arial, sans-serif; }
-              h2 { color: #333; }
-              table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
-              th { background-color: #f2f2f2; text-align: left; padding: 8px; }
-              td { padding: 8px; border-bottom: 1px solid #ddd; }
-              .commit-row { background-color: #f9f9f9; }
-              .files-list { margin: 0; padding-left: 20px; }
-              .no-changes { color: #999; font-style: italic; }
-            </style>
-            </head>
-            <body>
-              <h2>🔍 <strong>REPORTE DE COMMITS - $TODAY</strong></h2>"""
+  check_commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Clonar el repositorio
+        uses: actions/checkout@v3
+        with:
+          # Fetch todas las ramas y tags para asegurar que tenemos toda la historia
+          fetch-depth: 0  # Importante: obtiene todo el historial, no solo el último commit
 
-            for i in "${!USERS[@]}"; do
-              USERNAME="${USERS[$i]}"
-              EMAIL="${EMAILS[$i]}"
+      - name: 🛠 Configurar Git
+        run: |
+          # Configuración completa del repositorio
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          # Forzar fetch de todos los cambios remotos
+          git fetch --all --prune --tags --force
+          # Obtener todos los branches
+          git pull --all
 
-              COMMITS=$(git log --since="$TODAY 00:00" --until="$TODAY 18:00" --author="$USERNAME" --pretty=format:"%H|%s|%cd|%d" --date=format:'%Y-%m-%d %H:%M:%S' --all)
+      - name: 📊 Generar reporte detallado de commits por dia
+        run: |
+          # Configuración de zona horaria para Perú (UTC-5)
+          export TZ='America/Lima'
+          
+          # Fechas ajustadas para Perú
+          TODAY_PERU=$(date +"%Y-%m-%d")
+          START_TIME="${TODAY_PERU} 00:00:00 -0500"  # Inicio del día en Perú
+          END_TIME="${TODAY_PERU} 23:59:59 -0500"    # Fin del día en Perú
+          CURRENT_TIME_PERU=$(date +"%Y-%m-%d %H:%M:%S %z")
+          
+          # Lista de usuarios y sus correos
+          USERS=("DianaCY-ai" "Dihani")
+          EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
+          
+          # Inicio del reporte HTML
+          REPORT="""<html>
+          <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+            h3 { color: #3498db; margin-top: 20px; }
+            table { border-collapse: collapse; width: 100%; margin: 15px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+            th { background-color: #3498db; color: white; text-align: left; padding: 10px; }
+            td { padding: 10px; border-bottom: 1px solid #ddd; }
+            .commit-row:hover { background-color: #f5f5f5; }
+            .files-list { margin: 0; padding-left: 20px; list-style-type: square; }
+            .no-changes { color: #7f8c8d; }
+            .commit-hash { font-family: monospace; color: #2980b9; }
+            .timestamp { font-size: 0.9em; color: #95a5a6; text-align: right; }
+          </style>
+          </head>
+          <body>
+            <h2>🔍 <strong>REPORTE DE COMMITS - $TODAY_PERU</strong></h2>
+            <p class="timestamp">Generado el: $CURRENT_TIME_PERU (hora local Perú)</p>"""
 
-              if [ -n "$COMMITS" ]; then
-                REPORT+="<h3>✅ <strong>$USERNAME</strong> (${EMAIL})</h3>"
-                REPORT+="<table>"
-                REPORT+="<tr><th>Commit</th><th>ID</th><th>Fecha</th><th>Rama</th><th>Archivos</th></tr>"
+          # Iterar sobre cada usuario
+          for i in "${!USERS[@]}"; do
+            USERNAME="${USERS[$i]}"
+            EMAIL="${EMAILS[$i]}"
+
+            # Obtener commits del usuario en el rango del día completo (00:00 - 23:59 hora Perú)
+            COMMITS=$(git log --since="$START_TIME" --until="$END_TIME" --author="$USERNAME" \
+                      --pretty=format:"%H|%s|%cd|%d" --date=format:'%Y-%m-%d %H:%M:%S %z' --all)
+
+            if [ -n "$COMMITS" ]; then
+              REPORT+="<h3>✅ <strong>$USERNAME</strong> (${EMAIL})</h3>"
+              REPORT+="<table>"
+              REPORT+="<tr><th>Mensaje</th><th>ID Commit</th><th>Fecha/Hora</th><th>Rama</th><th>Archivos</th></tr>"
+              
+              # Procesar cada commit
+              while IFS="|" read -r HASH MESSAGE DATE REF; do
+                # Extraer nombre de la rama
+                BRANCH=$(echo "$REF" | grep -oP "(?<=origin/)[^, ]+" | head -n 1)
+                [ -z "$BRANCH" ] && BRANCH="Desconocida"
                 
-                while IFS="|" read -r HASH MESSAGE DATE REF; do
-                  BRANCH=$(echo "$REF" | grep -oP "(?<=origin/)[^, ]+" | head -n 1)
-                  [ -z "$BRANCH" ] && BRANCH="Desconocida"
-                  
-                  FILES=$(git diff-tree --no-commit-id --name-only -r "$HASH")
-                  FILE_LIST="<ul class='files-list'>"
-                  while read -r FILE; do
-                    FILE_LIST+="<li>$FILE</li>"
-                  done <<< "$FILES"
-                  FILE_LIST+="</ul>"
-                  
-                  REPORT+="<tr class='commit-row'>"
-                  REPORT+="<td>$MESSAGE</td>"
-                  REPORT+="<td><code>$HASH</code></td>"
-                  REPORT+="<td>$DATE</td>"
-                  REPORT+="<td>$BRANCH</td>"
-                  REPORT+="<td>$FILE_LIST</td>"
-                  REPORT+="</tr>"
-                done <<< "$COMMITS"
+                # Obtener archivos modificados
+                FILES=$(git diff-tree --no-commit-id --name-only -r "$HASH")
+                FILE_LIST="<ul class='files-list'>"
+                while read -r FILE; do
+                  FILE_LIST+="<li>$FILE</li>"
+                done <<< "$FILES"
+                FILE_LIST+="</ul>"
                 
-                REPORT+="</table>"
-              else
-                REPORT+="<h3 class='no-changes'>❌ $USERNAME (${EMAIL}) NO subió cambios hoy.</h3>"
-              fi
-            done
+                # Agregar fila a la tabla
+                REPORT+="<tr class='commit-row'>"
+                REPORT+="<td>$MESSAGE</td>"
+                REPORT+="<td><span class='commit-hash'>${HASH:0:7}</span></td>"  # Muestra solo los primeros 7 caracteres
+                REPORT+="<td>$DATE</td>"
+                REPORT+="<td>$BRANCH</td>"
+                REPORT+="<td>$FILE_LIST</td>"
+                REPORT+="</tr>"
+              done <<< "$COMMITS"
+              
+              REPORT+="</table>"
+            else
+              REPORT+="<h3 class='no-changes'>❌ $USERNAME (${EMAIL}) NO realizó commits hoy.</h3>"
+            fi
+          done
 
-            REPORT+="</body></html>"
- 
-           echo -e "$REPORT" > commit_report.txt
-           echo "commit_report<<EOF" >> $GITHUB_ENV
-           cat commit_report.txt >> $GITHUB_ENV
-           echo "EOF" >> $GITHUB_ENV
- 
-       - name: 📧 Enviar reporte por correo
-         uses: dawidd6/action-send-mail@v3
-         with:
-           server_address: smtp.gmail.com
-           server_port: 587
-           username: dihani.cy@gmail.com
-           password: ${{ secrets.GMAIL_PASSWORD }}
-           subject: "📢 Reporte de commits diarios - ${{ env.TODAY }}"
-           html_body: ${{ env.commit_report }}  # Cambiado de 'body' a 'html_body'
-           to: diana.carrasco@inetum.com, devdes673@gmail.com
-           from: "Reporte de GitHub <dihani.cy@gmail.com>"
+          REPORT+="</body></html>"
+
+          # Guardar reporte en archivo y variable de entorno
+          echo "$REPORT" > commit_report.html
+          echo "commit_report<<EOF" >> $GITHUB_ENV
+          cat commit_report.html >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          # Debug: Mostrar resumen en logs
+          echo "Reporte generado para el día $TODAY_PERU (00:00 - 23:59 hora Perú)"
+
+      - name: 📧 Enviar reporte por correo
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: dihani.cy@gmail.com
+          password: ${{ secrets.GMAIL_PASSWORD }}
+          subject: "📢 Reporte Diario de Commits - $(date -d '-5 hours' +'%Y-%m-%d')"
+          html_body: ${{ env.commit_report }}
+          to: diana.carrasco@inetum.com, devdes673@gmail.com
+          from: "GitHub Actions - Reporte Commits <dihani.cy@gmail.com>"
+          # Prioridad alta
+          priority: high
