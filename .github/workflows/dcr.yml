@@ -13,31 +13,34 @@ jobs:
       - name: 📥 Clonar el repositorio
         uses: actions/checkout@v3
         with:
-          # Fetch todas las ramas y tags para asegurar que tenemos toda la historia
-          fetch-depth: 0  # Importante: obtiene todo el historial, no solo el último commit
+          fetch-depth: 0  # Obtiene todo el historial de commits
 
       - name: 🛠 Configurar Git
         run: |
-          # Configuración completa del repositorio
+          # Configuración de zona horaria para Perú
+          export TZ='America/Lima'
+          
+          # Configuración básica de Git
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
-          # Forzar fetch de todos los cambios remotos
+          
+          # Obtener todas las referencias remotas
           git fetch --all --prune --tags --force
-          # Obtener todos los branches
           git pull --all
 
       - name: 📊 Generar reporte detallado de commits por dia
+        id: generate-report
         run: |
-          # Configuración de zona horaria para Perú (UTC-5)
-          export TZ='America/Lima'
-          
           # Fechas ajustadas para Perú
           TODAY_PERU=$(date +"%Y-%m-%d")
-          START_TIME="${TODAY_PERU} 00:00:00 -0500"  # Inicio del día en Perú
-          END_TIME="${TODAY_PERU} 23:59:59 -0500"    # Fin del día en Perú
+          START_TIME="${TODAY_PERU} 00:00:00 -0500"
+          END_TIME="${TODAY_PERU} 23:59:59 -0500"
           CURRENT_TIME_PERU=$(date +"%Y-%m-%d %H:%M:%S %z")
           
-          # Lista de usuarios y sus correos
+          # Guardar fecha para el asunto del correo
+          echo "REPORT_DATE=${TODAY_PERU}" >> $GITHUB_ENV
+          
+          # Lista de usuarios
           USERS=("DianaCY-ai" "Dihani")
           EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
           
@@ -67,7 +70,7 @@ jobs:
             USERNAME="${USERS[$i]}"
             EMAIL="${EMAILS[$i]}"
 
-            # Obtener commits del usuario en el rango del día completo (00:00 - 23:59 hora Perú)
+            # Obtener commits del usuario
             COMMITS=$(git log --since="$START_TIME" --until="$END_TIME" --author="$USERNAME" \
                       --pretty=format:"%H|%s|%cd|%d" --date=format:'%Y-%m-%d %H:%M:%S %z' --all)
 
@@ -78,9 +81,13 @@ jobs:
               
               # Procesar cada commit
               while IFS="|" read -r HASH MESSAGE DATE REF; do
-                # Extraer nombre de la rama
-                BRANCH=$(echo "$REF" | grep -oP "(?<=origin/)[^, ]+" | head -n 1)
-                [ -z "$BRANCH" ] && BRANCH="Desconocida"
+                # Mejor detección de rama
+                BRANCH=$(echo "$REF" | sed -E 's/.origin\/([^ ,)]+)./\1/' | head -n1)
+                if [ -z "$BRANCH" ] || [ "$BRANCH" = "$REF" ]; then
+                  # Alternativa: obtener rama del nombre ref
+                  BRANCH=$(git name-rev --name-only --exclude="tags/*" "$HASH" | sed 's/^remotes\/origin\///')
+                  [ -z "$BRANCH" ] && BRANCH="Desconocida"
+                fi
                 
                 # Obtener archivos modificados
                 FILES=$(git diff-tree --no-commit-id --name-only -r "$HASH")
@@ -93,7 +100,7 @@ jobs:
                 # Agregar fila a la tabla
                 REPORT+="<tr class='commit-row'>"
                 REPORT+="<td>$MESSAGE</td>"
-                REPORT+="<td><span class='commit-hash'>${HASH:0:7}</span></td>"  # Muestra solo los primeros 7 caracteres
+                REPORT+="<td><span class='commit-hash'>${HASH:0:7}</span></td>"
                 REPORT+="<td>$DATE</td>"
                 REPORT+="<td>$BRANCH</td>"
                 REPORT+="<td>$FILE_LIST</td>"
@@ -108,14 +115,11 @@ jobs:
 
           REPORT+="</body></html>"
 
-          # Guardar reporte en archivo y variable de entorno
+          # Guardar reporte
           echo "$REPORT" > commit_report.html
           echo "commit_report<<EOF" >> $GITHUB_ENV
           cat commit_report.html >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-
-          # Debug: Mostrar resumen en logs
-          echo "Reporte generado para el día $TODAY_PERU (00:00 - 23:59 hora Perú)"
 
       - name: 📧 Enviar reporte por correo
         uses: dawidd6/action-send-mail@v3
@@ -124,9 +128,8 @@ jobs:
           server_port: 587
           username: dihani.cy@gmail.com
           password: ${{ secrets.GMAIL_PASSWORD }}
-          subject: "📢 Reporte Diario de Commits - $(date -d '-5 hours' +'%Y-%m-%d')"
+          subject: "📢 Reporte Diario de Commits - ${{ env.REPORT_DATE }}"
           html_body: ${{ env.commit_report }}
           to: diana.carrasco@inetum.com, devdes673@gmail.com
           from: "GitHub Actions - Reporte Commits <dihani.cy@gmail.com>"
-          # Prioridad alta
           priority: high
