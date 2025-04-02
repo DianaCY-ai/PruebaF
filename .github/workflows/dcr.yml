@@ -16,7 +16,7 @@ jobs:
         run: |
           git fetch --all
 
-      - name: 📊 Verificar commits del día
+      - name: 📊 Generar reporte detallado de commits por dia
         run: |
           TODAY=$(date -u +"%Y-%m-%d")
           USERS=("DianaCY-ai" "Dihani")
@@ -28,13 +28,28 @@ jobs:
             USERNAME="${USERS[$i]}"
             EMAIL="${EMAILS[$i]}"
 
-            COUNT=$(git log --since="$TODAY 00:00" --until="$TODAY 18:00" --author="$USERNAME" --pretty=oneline | wc -l)
+            COMMITS=$(git log --since="$TODAY 00:00" --until="$TODAY 18:00" --author="$USERNAME" --pretty=format:"%H|%s|%cd|%d" --date=format:'%Y-%m-%d %H:%M:%S' --all)
 
-            if [ "$COUNT" -gt 0 ]; then
-              REPORT+="✅ $USERNAME (${EMAIL}) **subió cambios** ($COUNT commits)\n"
-              COMMITTED_USERS+=("$USERNAME")
+            if [ -n "$COMMITS" ]; then
+              REPORT+="✅ **$USERNAME (${EMAIL}) subió cambios:**\n"
+              while IFS="|" read -r HASH MESSAGE DATE REF; do
+                BRANCH=$(echo "$REF" | grep -oP "(?<=origin/)[^, ]+" | head -n 1)
+                [ -z "$BRANCH" ] && BRANCH="Desconocida"
+
+                REPORT+="  🔹 **Commit:** $MESSAGE\n"
+                REPORT+="  📅 **Fecha:** $DATE\n"
+                REPORT+="  🌿 **Rama:** $BRANCH\n"
+                REPORT+="  📝 **Archivos modificados:**\n"
+
+                FILES=$(git diff-tree --no-commit-id --name-only -r "$HASH")
+                while read -r FILE; do
+                  REPORT+="     - $FILE\n"
+                done <<< "$FILES"
+
+                REPORT+="\n"
+              done <<< "$COMMITS"
             else
-              REPORT+="❌ $USERNAME (${EMAIL}) **NO subió cambios**\n"
+              REPORT+="❌ **$USERNAME (${EMAIL}) NO subió cambios hoy.**\n"
             fi
           done
 
