@@ -16,11 +16,12 @@ jobs:
         run: |
           git fetch --all
 
-      - name: 📊 Generar reporte detallado de commits por dia en html
+      - name: 📊 Generar reporte detallado en HTML
         run: |
           TODAY=$(date -u +"%Y-%m-%d")
           USERS=("DianaCY-ai" "Dihani")
           EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
+          
           REPORT="<html><body>"
           REPORT+="<h2>🔍 Reporte de Commits - $TODAY</h2>"
           REPORT+="<table border='1' cellpadding='5' cellspacing='0' style='border-collapse: collapse;'>"
@@ -67,12 +68,12 @@ jobs:
 
           REPORT+="</table></body></html>"
 
-          echo -e "$REPORT" > commit_report.txt
+          echo "$REPORT" > commit_report.html
           echo "commit_report<<EOF" >> $GITHUB_ENV
-          cat commit_report.txt >> $GITHUB_ENV
+          cat commit_report.html >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: 📧 Enviar reporte por correo
+      - name: 📧 Enviar reporte por correo con formato HTML
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
