@@ -16,21 +16,21 @@ jobs:
         run: |
           git fetch --all
 
-      - name: 📊 Generar reporte detallado en HTML
+      - name: 📊 Generar reporte detallado en HTML con estilos mejorados
         run: |
           TODAY=$(date -u +"%Y-%m-%d")
           USERS=("DianaCY-ai" "Dihani")
           EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
           
           REPORT="<html><body>"
-          REPORT+="<h2>🔍 Reporte de Commits - $TODAY</h2>"
-          REPORT+="<table border='1' cellpadding='5' cellspacing='0' style='border-collapse: collapse;'>"
-          REPORT+="<tr>
-                      <th>👤 Usuario</th>
-                      <th>📅 Fecha y Hora</th>
-                      <th>📝 Mensaje del Commit</th>
-                      <th>🌿 Rama</th>
-                      <th>📂 Archivos Modificados</th>
+          REPORT+="<h2 style='color: #333;'>🔍 Reporte de Commits - $TODAY</h2>"
+          REPORT+="<table style='border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;' border='1'>"
+          REPORT+="<tr style='background-color: #f2f2f2;'>
+                      <th style='padding: 8px; text-align: left;'>👤 Usuario</th>
+                      <th style='padding: 8px; text-align: left;'>📅 Fecha y Hora</th>
+                      <th style='padding: 8px; text-align: left;'>📝 Mensaje del Commit</th>
+                      <th style='padding: 8px; text-align: left;'>🌿 Rama</th>
+                      <th style='padding: 8px; text-align: left;'>📂 Archivos Modificados</th>
                    </tr>"
 
           for i in "${!USERS[@]}"; do
@@ -45,23 +45,24 @@ jobs:
                 [ -z "$BRANCH" ] && BRANCH="Desconocida"
 
                 FILES=$(git diff-tree --no-commit-id --name-only -r "$HASH")
-                FILES_LIST="<ul>"
+                FILES_LIST=""
                 while read -r FILE; do
                   FILES_LIST+="<li>$FILE</li>"
                 done <<< "$FILES"
-                FILES_LIST+="</ul>"
+
+                [ -z "$FILES_LIST" ] && FILES_LIST="<i>No hay archivos modificados</i>"
 
                 REPORT+="<tr>
-                            <td>$USERNAME ($EMAIL)</td>
-                            <td>$DATE</td>
-                            <td>$MESSAGE</td>
-                            <td>$BRANCH</td>
-                            <td>$FILES_LIST</td>
+                            <td style='padding: 8px;'>$USERNAME ($EMAIL)</td>
+                            <td style='padding: 8px;'>$DATE</td>
+                            <td style='padding: 8px;'>$MESSAGE</td>
+                            <td style='padding: 8px;'>$BRANCH</td>
+                            <td style='padding: 8px;'><ul>$FILES_LIST</ul></td>
                          </tr>"
               done <<< "$COMMITS"
             else
               REPORT+="<tr>
-                          <td colspan='5'>❌ <b>$USERNAME ($EMAIL) NO subió cambios hoy.</b></td>
+                          <td colspan='5' style='padding: 8px; text-align: center;'><b>❌ $USERNAME ($EMAIL) NO subió cambios hoy.</b></td>
                         </tr>"
             fi
           done
@@ -73,7 +74,7 @@ jobs:
           cat commit_report.html >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: 📧 Enviar reporte por correo con formato HTML
+      - name: 📧 Enviar reporte por correo con formato HTML mejorado
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -85,4 +86,3 @@ jobs:
           content_type: text/html
           to: diana.carrasco@inetum.com, devdes673@gmail.com
           from: "Reporte de GitHub <dihani.cy@gmail.com>"
-
