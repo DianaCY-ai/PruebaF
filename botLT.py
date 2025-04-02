@@ -27,3 +27,5 @@ while True:
         break
     else:
         print(f"🪴 {chatbot.get_response(query)}")
+#mas comentaris didid
+#123
