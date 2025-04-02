@@ -22,7 +22,7 @@ jobs:
           USERS=("DianaCY-ai" "Dihani")
           EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
           COMMITTED_USERS=()
-          REPORT="🔍 **Reporte de Commits - $TODAY**\n\n"
+          REPORT="🔍 **Reporte de Commits - $TODAY**"$'\n\n'
 
           for i in "${!USERS[@]}"; do
             USERNAME="${USERS[$i]}"
