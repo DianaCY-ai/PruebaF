@@ -16,42 +16,56 @@ jobs:
         run: |
           git fetch --all
 
-      - name: 📊 Generar reporte detallado de commits por dia
+      - name: 📊 Generar reporte detallado de commits por dia en html
         run: |
           TODAY=$(date -u +"%Y-%m-%d")
           USERS=("DianaCY-ai" "Dihani")
           EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
-          COMMITTED_USERS=()
-          REPORT="🔍 **Reporte de Commits - $TODAY**\n\n"
+          REPORT="<html><body>"
+          REPORT+="<h2>🔍 Reporte de Commits - $TODAY</h2>"
+          REPORT+="<table border='1' cellpadding='5' cellspacing='0' style='border-collapse: collapse;'>"
+          REPORT+="<tr>
+                      <th>👤 Usuario</th>
+                      <th>📅 Fecha y Hora</th>
+                      <th>📝 Mensaje del Commit</th>
+                      <th>🌿 Rama</th>
+                      <th>📂 Archivos Modificados</th>
+                   </tr>"
 
           for i in "${!USERS[@]}"; do
             USERNAME="${USERS[$i]}"
             EMAIL="${EMAILS[$i]}"
-
+            
             COMMITS=$(git log --since="$TODAY 00:00" --until="$TODAY 18:00" --author="$USERNAME" --pretty=format:"%H|%s|%cd|%d" --date=format:'%Y-%m-%d %H:%M:%S' --all)
 
             if [ -n "$COMMITS" ]; then
-              REPORT+="✅ **$USERNAME (${EMAIL}) subió cambios:**\n"
               while IFS="|" read -r HASH MESSAGE DATE REF; do
                 BRANCH=$(echo "$REF" | grep -oP "(?<=origin/)[^, ]+" | head -n 1)
                 [ -z "$BRANCH" ] && BRANCH="Desconocida"
 
-                REPORT+="  🔹 **Commit:** $MESSAGE\n"
-                REPORT+="  📅 **Fecha:** $DATE\n"
-                REPORT+="  🌿 **Rama:** $BRANCH\n"
-                REPORT+="  📝 **Archivos modificados:**\n"
-
                 FILES=$(git diff-tree --no-commit-id --name-only -r "$HASH")
+                FILES_LIST="<ul>"
                 while read -r FILE; do
-                  REPORT+="     - $FILE\n"
+                  FILES_LIST+="<li>$FILE</li>"
                 done <<< "$FILES"
+                FILES_LIST+="</ul>"
 
-                REPORT+="\n"
+                REPORT+="<tr>
+                            <td>$USERNAME ($EMAIL)</td>
+                            <td>$DATE</td>
+                            <td>$MESSAGE</td>
+                            <td>$BRANCH</td>
+                            <td>$FILES_LIST</td>
+                         </tr>"
               done <<< "$COMMITS"
             else
-              REPORT+="❌ **$USERNAME (${EMAIL}) NO subió cambios hoy.**\n"
+              REPORT+="<tr>
+                          <td colspan='5'>❌ <b>$USERNAME ($EMAIL) NO subió cambios hoy.</b></td>
+                        </tr>"
             fi
           done
+
+          REPORT+="</table></body></html>"
 
           echo -e "$REPORT" > commit_report.txt
           echo "commit_report<<EOF" >> $GITHUB_ENV
@@ -67,6 +81,7 @@ jobs:
           password: ${{ secrets.GMAIL_PASSWORD }}
           subject: "📢 Reporte de commits diarios - ${{ env.TODAY }}"
           body: ${{ env.commit_report }}
+          content_type: text/html
           to: diana.carrasco@inetum.com, devdes673@gmail.com
           from: "Reporte de GitHub <dihani.cy@gmail.com>"
 
