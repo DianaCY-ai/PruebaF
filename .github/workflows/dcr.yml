@@ -2,8 +2,8 @@ name: Daily Commit Report
 
 on:
   schedule:
-    - cron: '00 18 * * *'  # Ejecuta todos los días a las 18:00 UTC (hora configurada)
-  workflow_dispatch:  # Permite ejecución manual desde GitHub Actions
+    - cron: '00 18 * * *'  # Ejecuta todos los días a las 18:00 UTC
+  workflow_dispatch:
 
 jobs:
   check_commits:
@@ -16,7 +16,7 @@ jobs:
         run: |
           git fetch --all
 
-      - name: 📊 Generar reporte detallado en HTML con formato correcto
+      - name: 📊 Generar reporte detallado en HTML
         run: |
           TODAY=$(date -u +"%Y-%m-%d")
           USERS=("DianaCY-ai" "Dihani")
@@ -69,11 +69,14 @@ jobs:
 
           echo "</table></body></html>" >> commit_report.html
 
-          echo "commit_report<<EOF" >> $GITHUB_ENV
-          cat commit_report.html >> $GITHUB_ENV
+      - name: 📧 Enviar reporte por correo con HTML correctamente formateado
+        run: |
+          REPORT_BODY=$(cat commit_report.html)
+          echo "REPORT_BODY<<EOF" >> $GITHUB_ENV
+          echo "$REPORT_BODY" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: 📧 Enviar reporte por correo con HTML correctamente formateado
+      - name: 📧 Enviar correo
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -81,7 +84,7 @@ jobs:
           username: dihani.cy@gmail.com
           password: ${{ secrets.GMAIL_PASSWORD }}
           subject: "📢 Reporte de commits diarios - ${{ env.TODAY }}"
-          body: "$(cat commit_report.html)"
+          body: "${{ env.REPORT_BODY }}"
           content_type: text/html
           to: diana.carrasco@inetum.com, devdes673@gmail.com
           from: "Reporte de GitHub <dihani.cy@gmail.com>"
