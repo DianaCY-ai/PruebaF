@@ -16,22 +16,22 @@ jobs:
         run: |
           git fetch --all
 
-      - name: 📊 Generar reporte detallado en HTML con estilos mejorados
+      - name: 📊 Generar reporte detallado en HTML con formato correcto
         run: |
           TODAY=$(date -u +"%Y-%m-%d")
           USERS=("DianaCY-ai" "Dihani")
           EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
-          
-          REPORT="<html><body>"
-          REPORT+="<h2 style='color: #333;'>🔍 Reporte de Commits - $TODAY</h2>"
-          REPORT+="<table style='border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;' border='1'>"
-          REPORT+="<tr style='background-color: #f2f2f2;'>
-                      <th style='padding: 8px; text-align: left;'>👤 Usuario</th>
-                      <th style='padding: 8px; text-align: left;'>📅 Fecha y Hora</th>
-                      <th style='padding: 8px; text-align: left;'>📝 Mensaje del Commit</th>
-                      <th style='padding: 8px; text-align: left;'>🌿 Rama</th>
-                      <th style='padding: 8px; text-align: left;'>📂 Archivos Modificados</th>
-                   </tr>"
+
+          echo "<html><body>" > commit_report.html
+          echo "<h2 style='color: #333;'>🔍 Reporte de Commits - $TODAY</h2>" >> commit_report.html
+          echo "<table style='border-collapse: collapse; width: 100%; font-family: Arial, sans-serif;' border='1'>" >> commit_report.html
+          echo "<tr style='background-color: #f2f2f2;'>
+                  <th style='padding: 8px; text-align: left;'>👤 Usuario</th>
+                  <th style='padding: 8px; text-align: left;'>📅 Fecha y Hora</th>
+                  <th style='padding: 8px; text-align: left;'>📝 Mensaje del Commit</th>
+                  <th style='padding: 8px; text-align: left;'>🌿 Rama</th>
+                  <th style='padding: 8px; text-align: left;'>📂 Archivos Modificados</th>
+               </tr>" >> commit_report.html
 
           for i in "${!USERS[@]}"; do
             USERNAME="${USERS[$i]}"
@@ -52,29 +52,28 @@ jobs:
 
                 [ -z "$FILES_LIST" ] && FILES_LIST="<i>No hay archivos modificados</i>"
 
-                REPORT+="<tr>
-                            <td style='padding: 8px;'>$USERNAME ($EMAIL)</td>
-                            <td style='padding: 8px;'>$DATE</td>
-                            <td style='padding: 8px;'>$MESSAGE</td>
-                            <td style='padding: 8px;'>$BRANCH</td>
-                            <td style='padding: 8px;'><ul>$FILES_LIST</ul></td>
-                         </tr>"
+                echo "<tr>
+                        <td style='padding: 8px;'>$USERNAME ($EMAIL)</td>
+                        <td style='padding: 8px;'>$DATE</td>
+                        <td style='padding: 8px;'>$MESSAGE</td>
+                        <td style='padding: 8px;'>$BRANCH</td>
+                        <td style='padding: 8px;'><ul>$FILES_LIST</ul></td>
+                      </tr>" >> commit_report.html
               done <<< "$COMMITS"
             else
-              REPORT+="<tr>
-                          <td colspan='5' style='padding: 8px; text-align: center;'><b>❌ $USERNAME ($EMAIL) NO subió cambios hoy.</b></td>
-                        </tr>"
+              echo "<tr>
+                      <td colspan='5' style='padding: 8px; text-align: center;'><b>❌ $USERNAME ($EMAIL) NO subió cambios hoy.</b></td>
+                    </tr>" >> commit_report.html
             fi
           done
 
-          REPORT+="</table></body></html>"
+          echo "</table></body></html>" >> commit_report.html
 
-          echo "$REPORT" > commit_report.html
           echo "commit_report<<EOF" >> $GITHUB_ENV
           cat commit_report.html >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: 📧 Enviar reporte por correo con formato HTML mejorado
+      - name: 📧 Enviar reporte por correo con HTML correctamente formateado
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -82,7 +81,8 @@ jobs:
           username: dihani.cy@gmail.com
           password: ${{ secrets.GMAIL_PASSWORD }}
           subject: "📢 Reporte de commits diarios - ${{ env.TODAY }}"
-          body: ${{ env.commit_report }}
+          body: "$(cat commit_report.html)"
           content_type: text/html
           to: diana.carrasco@inetum.com, devdes673@gmail.com
           from: "Reporte de GitHub <dihani.cy@gmail.com>"
+
