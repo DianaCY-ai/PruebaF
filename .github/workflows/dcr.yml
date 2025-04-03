@@ -15,9 +15,10 @@ jobs:
         with:
           fetch-depth: 0  # Obtiene todo el historial de commits
 
-      - name: 🛠 Configurar Git
+      - name: 🛠 Configurar Git y Zona Horaria
         run: |
           # Configuración de zona horaria para Perú
+          sudo timedatectl set-timezone America/Lima
           export TZ='America/Lima'
           
           # Configuración básica de Git
@@ -28,7 +29,7 @@ jobs:
           git fetch --all --prune --tags --force
           git pull --all
 
-      - name: 📊 Generar reporte detallado de commits por dia
+      - name: 📊 Generar reporte detallado de commits
         id: generate-report
         run: |
           # Fechas ajustadas para Perú
@@ -59,11 +60,44 @@ jobs:
             .no-changes { color: #7f8c8d; }
             .commit-hash { font-family: monospace; color: #2980b9; }
             .timestamp { font-size: 0.9em; color: #95a5a6; text-align: right; }
+            .branch-main { background-color: #e8f5e9; }
+            .branch-feature { background-color: #e3f2fd; }
           </style>
           </head>
           <body>
             <h2>🔍 <strong>REPORTE DE COMMITS - $TODAY_PERU</strong></h2>
             <p class="timestamp">Generado el: $CURRENT_TIME_PERU (hora local Perú)</p>"""
+
+          # Función para obtener la rama principal de un commit
+          get_primary_branch() {
+            local commit_hash=$1
+            # Primero buscamos ramas remotas que contengan el commit
+            local branches=$(git branch -r --contains "$commit_hash" | sed 's/^[ \t]*origin\///' | grep -v "HEAD" | sort)
+            
+            # Priorizamos main si existe
+            if echo "$branches" | grep -q "main"; then
+              echo "main"
+              return
+            fi
+            
+            # Luego buscamos cualquier otra rama
+            local primary_branch=$(echo "$branches" | head -n1)
+            
+            # Si no encontramos, usamos el método alternativo
+            if [ -z "$primary_branch" ]; then
+              primary_branch=$(git log -n 1 --pretty=format:"%D" "$commit_hash" | grep -o "origin/[^ ,]*" | sed 's/origin\///' | head -n1)
+            fi
+            
+            # Limpieza final del nombre
+            primary_branch=$(echo "$primary_branch" | sed -e 's/~[0-9]//g' -e 's/\^[0-9]//g' -e 's/HEAD -> //')
+            
+            # Si sigue vacío o tiene formato incorrecto, usar "main"
+            if [ -z "$primary_branch" ] || [[ "$primary_branch" =~ ~ ]] || [[ "$primary_branch" =~ \^ ]]; then
+              echo "main"
+            else
+              echo "$primary_branch"
+            fi
+          }
 
           # Iterar sobre cada usuario
           for i in "${!USERS[@]}"; do
@@ -81,12 +115,14 @@ jobs:
               
               # Procesar cada commit
               while IFS="|" read -r HASH MESSAGE DATE REF; do
-                # Mejor detección de rama
-                BRANCH=$(echo "$REF" | sed -E 's/.origin\/([^ ,)]+)./\1/' | head -n1)
-                if [ -z "$BRANCH" ] || [ "$BRANCH" = "$REF" ]; then
-                  # Alternativa: obtener rama del nombre ref
-                  BRANCH=$(git name-rev --name-only --exclude="tags/*" "$HASH" | sed 's/^remotes\/origin\///')
-                  [ -z "$BRANCH" ] && BRANCH="Desconocida"
+                # Obtener la rama principal
+                BRANCH=$(get_primary_branch "$HASH")
+                
+                # Determinar clase CSS según la rama
+                if [ "$BRANCH" = "main" ]; then
+                  BRANCH_CLASS="branch-main"
+                else
+                  BRANCH_CLASS="branch-feature"
                 fi
                 
                 # Obtener archivos modificados
@@ -102,7 +138,7 @@ jobs:
                 REPORT+="<td>$MESSAGE</td>"
                 REPORT+="<td><span class='commit-hash'>${HASH:0:7}</span></td>"
                 REPORT+="<td>$DATE</td>"
-                REPORT+="<td>$BRANCH</td>"
+                REPORT+="<td class='$BRANCH_CLASS'>$BRANCH</td>"
                 REPORT+="<td>$FILE_LIST</td>"
                 REPORT+="</tr>"
               done <<< "$COMMITS"
@@ -120,6 +156,10 @@ jobs:
           echo "commit_report<<EOF" >> $GITHUB_ENV
           cat commit_report.html >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+
+          # Debug: Mostrar resumen
+          echo "=== Resumen de Ramas Detectadas ==="
+          git log --since="$START_TIME" --until="$END_TIME" --pretty=format:"%H %d" --all | head -n 20
 
       - name: 📧 Enviar reporte por correo
         uses: dawidd6/action-send-mail@v3
