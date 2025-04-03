@@ -1,57 +1,95 @@
 name: Daily Commit Report
 
 on:
-  schedule:
-    - cron: '00 18 * * *'  # Ejecuta todos los días a las 18:00 UTC (hora configurada)
-  workflow_dispatch:  # Permite ejecución manual desde GitHub Actions
-
+   schedule:
+     - cron: '00 18 * * *'  # Ejecuta todos los días a las 18:00 UTC (hora configurada)
+   workflow_dispatch:  # Permite ejecución manual desde GitHub Actions
+ 
 jobs:
-  check_commits:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Clonar el repositorio
-        uses: actions/checkout@v3
+   check_commits:
+     runs-on: ubuntu-latest
+     steps:
+       - name: 📥 Clonar el repositorio
+         uses: actions/checkout@v3
+ 
+       - name: 🛠 Configurar Git
+         run: |
+           git fetch --all
+ 
+       - name: 📊 Generar reporte detallado de commits por dia
+         run: |
+           TODAY=$(date -u +"%Y-%m-%d")
+           USERS=("DianaCY-ai" "Dihani")
+           EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
+           COMMITTED_USERS=()
+           REPORT="""<html>
+            <head>
+            <style>
+              body { font-family: Arial, sans-serif; }
+              h2 { color: #333; }
+              table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+              th { background-color: #f2f2f2; text-align: left; padding: 8px; }
+              td { padding: 8px; border-bottom: 1px solid #ddd; }
+              .commit-row { background-color: #f9f9f9; }
+              .files-list { margin: 0; padding-left: 20px; }
+              .no-changes { color: #999; font-style: italic; }
+            </style>
+            </head>
+            <body>
+              <h2>🔍 <strong>REPORTE DE COMMITS - $TODAY</strong></h2>"""
 
-      - name: 🛠 Configurar Git
-        run: |
-          git fetch --all
+            for i in "${!USERS[@]}"; do
+              USERNAME="${USERS[$i]}"
+              EMAIL="${EMAILS[$i]}"
 
-      - name: 📊 Verificar commits del día
-        run: |
-          TODAY=$(date -u +"%Y-%m-%d")
-          USERS=("DianaCY-ai" "Dihani")
-          EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
-          COMMITTED_USERS=()
-          REPORT="🔍 **Reporte de Commits - $TODAY**\n\n"
+              COMMITS=$(git log --since="$TODAY 00:00" --until="$TODAY 18:00" --author="$USERNAME" --pretty=format:"%H|%s|%cd|%d" --date=format:'%Y-%m-%d %H:%M:%S' --all)
 
-          for i in "${!USERS[@]}"; do
-            USERNAME="${USERS[$i]}"
-            EMAIL="${EMAILS[$i]}"
+              if [ -n "$COMMITS" ]; then
+                REPORT+="<h3>✅ <strong>$USERNAME</strong> (${EMAIL})</h3>"
+                REPORT+="<table>"
+                REPORT+="<tr><th>Commit</th><th>ID</th><th>Fecha</th><th>Rama</th><th>Archivos</th></tr>"
+                
+                while IFS="|" read -r HASH MESSAGE DATE REF; do
+                  BRANCH=$(echo "$REF" | grep -oP "(?<=origin/)[^, ]+" | head -n 1)
+                  [ -z "$BRANCH" ] && BRANCH="Desconocida"
+                  
+                  FILES=$(git diff-tree --no-commit-id --name-only -r "$HASH")
+                  FILE_LIST="<ul class='files-list'>"
+                  while read -r FILE; do
+                    FILE_LIST+="<li>$FILE</li>"
+                  done <<< "$FILES"
+                  FILE_LIST+="</ul>"
+                  
+                  REPORT+="<tr class='commit-row'>"
+                  REPORT+="<td>$MESSAGE</td>"
+                  REPORT+="<td><code>$HASH</code></td>"
+                  REPORT+="<td>$DATE</td>"
+                  REPORT+="<td>$BRANCH</td>"
+                  REPORT+="<td>$FILE_LIST</td>"
+                  REPORT+="</tr>"
+                done <<< "$COMMITS"
+                
+                REPORT+="</table>"
+              else
+                REPORT+="<h3 class='no-changes'>❌ $USERNAME (${EMAIL}) NO subió cambios hoy.</h3>"
+              fi
+            done
 
-            COUNT=$(git log --since="$TODAY 00:00" --until="$TODAY 18:00" --author="$USERNAME" --pretty=oneline | wc -l)
-
-            if [ "$COUNT" -gt 0 ]; then
-              REPORT+="✅ $USERNAME (${EMAIL}) **subió cambios** ($COUNT commits)\n"
-              COMMITTED_USERS+=("$USERNAME")
-            else
-              REPORT+="❌ $USERNAME (${EMAIL}) **NO subió cambios**\n"
-            fi
-          done
-
-          echo -e "$REPORT" > commit_report.txt
-          echo "commit_report<<EOF" >> $GITHUB_ENV
-          cat commit_report.txt >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-      - name: 📧 Enviar reporte por correo
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: dihani.cy@gmail.com
-          password: ${{ secrets.GMAIL_PASSWORD }}
-          subject: "📢 Reporte de commits diarios - ${{ env.TODAY }}"
-          body: ${{ env.commit_report }}
-          to: diana.carrasco@inetum.com, devdes673@gmail.com
-          from: "Reporte de GitHub <dihani.cy@gmail.com>"
-
+            REPORT+="</body></html>"
+ 
+           echo -e "$REPORT" > commit_report.txt
+           echo "commit_report<<EOF" >> $GITHUB_ENV
+           cat commit_report.txt >> $GITHUB_ENV
+           echo "EOF" >> $GITHUB_ENV
+ 
+       - name: 📧 Enviar reporte por correo
+         uses: dawidd6/action-send-mail@v3
+         with:
+           server_address: smtp.gmail.com
+           server_port: 587
+           username: dihani.cy@gmail.com
+           password: ${{ secrets.GMAIL_PASSWORD }}
+           subject: "📢 Reporte de commits diarios - ${{ env.TODAY }}"
+           html_body: ${{ env.commit_report }}  # Cambiado de 'body' a 'html_body'
+           to: diana.carrasco@inetum.com, devdes673@gmail.com
+           from: "Reporte de GitHub <dihani.cy@gmail.com>"
