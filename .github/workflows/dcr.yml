@@ -88,11 +88,11 @@ jobs:
         with:
           server_address: smtp.gmail.com
           server_port: 587
-          username: devdes673@gmail.com
+          username: dihani.cy@gmail.com
           password: ${{ secrets.GMAIL_PASSWORD }}
           subject: "📢 Reporte Diario de Commits - ${{ env.REPORT_DATE }}"
           html_body: ${{ env.commit_report }}
           to: diana.carrasco@inetum.com, devdes673@gmail.com
-          from: "GitHub Actions - Reporte Commits <devdes673@gmail.com>"
+          from: "GitHub Actions - Reporte Commits <dihani.cy@gmail.com>"
           priority: high
 
