@@ -1,95 +1,130 @@
-name: Daily Commit Report
+name: Enhanced Daily Commit Report
 
 on:
-   schedule:
-     - cron: '00 18 * * *'  # Ejecuta todos los días a las 18:00 UTC (hora configurada)
-   workflow_dispatch:  # Permite ejecución manual desde GitHub Actions
- 
+  schedule:
+    - cron: '59 4 * * *'  # 23:59:59 Perú (04:59:59 UTC)
+  workflow_dispatch:
+
 jobs:
-   check_commits:
-     runs-on: ubuntu-latest
-     steps:
-       - name: 📥 Clonar el repositorio
-         uses: actions/checkout@v3
- 
-       - name: 🛠 Configurar Git
-         run: |
-           git fetch --all
- 
-       - name: 📊 Generar reporte detallado de commits por dia
-         run: |
-           TODAY=$(date -u +"%Y-%m-%d")
-           USERS=("DianaCY-ai" "Dihani")
-           EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
-           COMMITTED_USERS=()
-           REPORT="""<html>
-            <head>
-            <style>
-              body { font-family: Arial, sans-serif; }
-              h2 { color: #333; }
-              table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
-              th { background-color: #f2f2f2; text-align: left; padding: 8px; }
-              td { padding: 8px; border-bottom: 1px solid #ddd; }
-              .commit-row { background-color: #f9f9f9; }
-              .files-list { margin: 0; padding-left: 20px; }
-              .no-changes { color: #999; font-style: italic; }
-            </style>
-            </head>
-            <body>
-              <h2>🔍 <strong>REPORTE DE COMMITS - $TODAY</strong></h2>"""
+  check_commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Clonar y actualizar repositorio
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Obtener todo el historial
 
-            for i in "${!USERS[@]}"; do
-              USERNAME="${USERS[$i]}"
-              EMAIL="${EMAILS[$i]}"
+      - name: 🛠 Configurar entorno
+        run: |
+          sudo timedatectl set-timezone America/Lima
+          export TZ='America/Lima'
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git fetch --all --prune --tags --force
+          git pull --all --rebase
 
-              COMMITS=$(git log --since="$TODAY 00:00" --until="$TODAY 18:00" --author="$USERNAME" --pretty=format:"%H|%s|%cd|%d" --date=format:'%Y-%m-%d %H:%M:%S' --all)
+      - name: 📊 Generar reporte mejorado
+        id: generate-report
+        run: |
+          # Configuración de fechas
+          TODAY_PERU=$(date +"%Y-%m-%d")
+          START_TIME="${TODAY_PERU} 00:00:00 -0500"
+          END_TIME="${TODAY_PERU} 23:59:59 -0500"
+          echo "REPORT_DATE=${TODAY_PERU}" >> $GITHUB_ENV
 
-              if [ -n "$COMMITS" ]; then
-                REPORT+="<h3>✅ <strong>$USERNAME</strong> (${EMAIL})</h3>"
-                REPORT+="<table>"
-                REPORT+="<tr><th>Commit</th><th>ID</th><th>Fecha</th><th>Rama</th><th>Archivos</th></tr>"
+          # Función mejorada para obtener archivos modificados
+          get_modified_files() {
+            local commit_hash=$1
+            # Archivos modificados en el commit
+            local files=$(git diff-tree --no-commit-id --name-only -r "$commit_hash")
+            
+            # Si es un merge commit, obtener archivos del merge
+            if git show --no-patch --format="%P" "$commit_hash" | grep -q " "; then
+              files+=$'\n'$(git diff --name-only "$commit_hash"^1 "$commit_hash"^2)
+            fi
+            
+            # Eliminar duplicados y líneas vacías
+            echo "$files" | grep -v "^$" | sort | uniq
+          }
+
+          # Función para obtener rama principal
+          get_primary_branch() {
+            local commit_hash=$1
+            local branch=$(git branch -r --contains "$commit_hash" | sed 's/^[ \t]*origin\///' | grep -v "HEAD" | head -n1)
+            
+            [ -z "$branch" ] && branch=$(git log -n 1 --pretty=format:"%D" "$commit_hash" | grep -o "origin/[^ ,]*" | sed 's/origin\///' | head -n1)
+            echo "${branch:-main}" | sed -e 's/[~^][0-9]*//g' -e 's/HEAD -> //'
+          }
+
+          # Generar HTML
+          REPORT="""<html>
+          <head><style>
+            /* Estilos mejorados */
+            .files-list li { font-family: monospace; margin: 2px 0; }
+            .merge-info { color: #6a1b9a; font-weight: bold; }
+          </style></head>
+          <body>
+            <h2>🔍 REPORTE DE COMMITS - $TODAY_PERU</h2>"""
+
+          USERS=("DianaCY-ai" "Dihani")
+          EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
+
+          for i in "${!USERS[@]}"; do
+            USERNAME="${USERS[$i]}"
+            EMAIL="${EMAILS[$i]}"
+            COMMITS=$(git log --since="$START_TIME" --until="$END_TIME" --author="$USERNAME" \
+                      --pretty=format:"%H|%s|%cd|%P" --date=format:'%Y-%m-%d %H:%M:%S' --all)
+
+            if [ -n "$COMMITS" ]; then
+              REPORT+="<h3>✅ $USERNAME ($EMAIL)</h3><table>"
+              REPORT+="<tr><th>Commit</th><th>Rama</th><th>Archivos</th></tr>"
+              
+              while IFS="|" read -r HASH MESSAGE DATE PARENTS; do
+                BRANCH=$(get_primary_branch "$HASH")
+                FILES=$(get_modified_files "$HASH")
                 
-                while IFS="|" read -r HASH MESSAGE DATE REF; do
-                  BRANCH=$(echo "$REF" | grep -oP "(?<=origin/)[^, ]+" | head -n 1)
-                  [ -z "$BRANCH" ] && BRANCH="Desconocida"
-                  
-                  FILES=$(git diff-tree --no-commit-id --name-only -r "$HASH")
-                  FILE_LIST="<ul class='files-list'>"
+                # Detectar si es merge commit
+                MERGE_INFO=""
+                if [ $(echo "$PARENTS" | wc -w) -gt 1 ]; then
+                  MERGE_INFO="<div class='merge-info'>(Merge commit)</div>"
+                fi
+                
+                REPORT+="<tr>"
+                REPORT+="<td><strong>${MESSAGE}</strong><br>${DATE}${MERGE_INFO}</td>"
+                REPORT+="<td>$BRANCH</td>"
+                REPORT+="<td><ul class='files-list'>"
+                
+                if [ -n "$FILES" ]; then
                   while read -r FILE; do
-                    FILE_LIST+="<li>$FILE</li>"
+                    REPORT+="<li>$FILE</li>"
                   done <<< "$FILES"
-                  FILE_LIST+="</ul>"
-                  
-                  REPORT+="<tr class='commit-row'>"
-                  REPORT+="<td>$MESSAGE</td>"
-                  REPORT+="<td><code>$HASH</code></td>"
-                  REPORT+="<td>$DATE</td>"
-                  REPORT+="<td>$BRANCH</td>"
-                  REPORT+="<td>$FILE_LIST</td>"
-                  REPORT+="</tr>"
-                done <<< "$COMMITS"
+                else
+                  REPORT+="<li>No se detectaron archivos modificados</li>"
+                fi
                 
-                REPORT+="</table>"
-              else
-                REPORT+="<h3 class='no-changes'>❌ $USERNAME (${EMAIL}) NO subió cambios hoy.</h3>"
-              fi
-            done
+                REPORT+="</ul></td></tr>"
+              done <<< "$COMMITS"
+              
+              REPORT+="</table>"
+            else
+              REPORT+="<h3>❌ $USERNAME ($EMAIL) NO realizó commits hoy.</h3>"
+            fi
+          done
 
-            REPORT+="</body></html>"
- 
-           echo -e "$REPORT" > commit_report.txt
-           echo "commit_report<<EOF" >> $GITHUB_ENV
-           cat commit_report.txt >> $GITHUB_ENV
-           echo "EOF" >> $GITHUB_ENV
- 
-       - name: 📧 Enviar reporte por correo
-         uses: dawidd6/action-send-mail@v3
-         with:
-           server_address: smtp.gmail.com
-           server_port: 587
-           username: dihani.cy@gmail.com
-           password: ${{ secrets.GMAIL_PASSWORD }}
-           subject: "📢 Reporte de commits diarios - ${{ env.TODAY }}"
-           html_body: ${{ env.commit_report }}  # Cambiado de 'body' a 'html_body'
-           to: diana.carrasco@inetum.com, devdes673@gmail.com
-           from: "Reporte de GitHub <dihani.cy@gmail.com>"
+          REPORT+="</body></html>"
+          echo "$REPORT" > commit_report.html
+          echo "commit_report<<EOF" >> $GITHUB_ENV
+          cat commit_report.html >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: 📧 Enviar reporte
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: dihani.cy@gmail.com
+          password: ${{ secrets.GMAIL_PASSWORD }}
+          subject: "📢 Reporte de Commits - ${{ env.REPORT_DATE }}"
+          html_body: ${{ env.commit_report }}
+          to: diana.carrasco@inetum.com, devdes673@gmail.com
+          from: "GitHub Actions <dihani.cy@gmail.com>"
