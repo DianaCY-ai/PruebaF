@@ -3,38 +3,35 @@
 # Function to get the actual branch name for a commit
 get_actual_branch() {
     local commit_hash=$1
-    
-    # First try: check reflog for branch names
+
+    # 1. Intento: Buscar en el reflog (menos confiable en CI)
     local branch=$(git reflog --format='%gs' | \
                    grep -m1 "$commit_hash" | \
                    sed -n 's/^.checkout: moving from [^ ] to \(.*\)$/\1/p')
-    
-    # Second try: find branches containing this commit
-    if [ -z "$branch"]; then 
+
+    # 2. Intento: Buscar ramas que contengan el commit (priorizando main)
+    if [ -z "$branch" ]; then
         branches=$(git branch -r --contains "$commit_hash" | sed 's/^[ \t]*origin\///' | grep -v "HEAD")
-        if [[ "$branches" == *"main"* ]]; then
+        if [[ "$branches" == "main" ]]; then
             branch="main"
         else
             branch=$(echo "$branches" | head -n1)
         fi
     fi
-    # Third try: find tags containing this commit
+
+    # 3. Intento: Buscar tags (solo si aplica)
     [ -z "$branch" ] && branch=$(git tag --contains "$commit_hash" | head -n1)
-    
-    # Fallback: use commit reference
+
+    # 4. Fallback: Usar nombre de referencia
     [ -z "$branch" ] && branch=$(git name-rev --name-only --exclude="tags/*" "$commit_hash" | \
                                 sed 's/^remotes\/origin\///')
-    
-    # Clean up branch name
+
+    # Limpieza final
     branch=$(echo "$branch" | sed -e 's/[~^][0-9]*//g' -e 's/HEAD -> //')
     
-    # Default to main if still empty or contains invalid characters
-    if [ -z "$branch" ] || [[ "$branch" =~ [\~\^] ]]; then
-        echo "main"
-    else
-        echo "$branch"
-    fi
+    echo "${branch:-main}"  # Default a main si todo falla
 }
+
 
 # Function to get modified files including merge commits
 get_modified_files() {
