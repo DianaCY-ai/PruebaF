@@ -16,19 +16,14 @@ jobs:
 
       - name: 🛠 Configurar entorno
         run: |
-          # Configuración de zona horaria para Perú
           sudo timedatectl set-timezone America/Lima
           export TZ='America/Lima'
-
-          # Configuración básica de Git
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
-
-          # Obtener todas las referencias remotas
           git fetch --all --prune --tags --force
           git pull --all --rebase
 
-      - name: 📊 Generar reporte mejorado
+      - name: 📊 Generar reporte completo MEJORADO
         id: generate-report
         run: |
           # Configuración de fechas
@@ -61,28 +56,26 @@ jobs:
             echo "${branch:-main}" | sed -e 's/[~^][0-9]*//g' -e 's/HEAD -> //'
           }
 
-          # Generar HTML
+          # Generar HTML con todos los elementos solicitados
           REPORT="""<html>
           <head><style>
-            /* Estilos mejorados */
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-            h3 { color: #3498db; margin-top: 20px; }
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+            h3 { color: #3498db; margin-top: 25px; }
             table { border-collapse: collapse; width: 100%; margin: 15px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-            th { background-color: #3498db; color: white; text-align: left; padding: 10px; }
-            td { padding: 10px; border-bottom: 1px solid #ddd; }
-            .commit-row:hover { background-color: #f5f5f5; }
-            .files-list { margin: 0; padding-left: 20px; list-style-type: square; }
-            .no-changes { color: #7f8c8d; }
-            .commit-hash { font-family: monospace; color: #2980b9; }
-            .timestamp { font-size: 0.9em; color: #95a5a6; text-align: right; }
-            .branch-main { background-color: #e8f5e9; }
-            .branch-feature { background-color: #e3f2fd; }
-            .merge-info { color: #6a1b9a; font-weight: bold; }
+            th { background-color: #3498db; color: white; padding: 12px; text-align: left; }
+            td { padding: 10px; border-bottom: 1px solid #ddd; vertical-align: top; }
+            .commit-hash { font-family: monospace; color: #2980b9; font-size: 0.9em; }
+            .commit-date { color: #7f8c8d; font-size: 0.9em; }
+            .files-list { margin: 0; padding-left: 20px; list-style-type: none; }
+            .files-list li { font-family: monospace; margin: 3px 0; padding: 2px 5px; background-color: #f9f9f9; border-radius: 3px; }
+            .merge-info { color: #6a1b9a; font-weight: bold; background-color: #f3e5f5; padding: 2px 5px; border-radius: 3px; display: inline-block; }
+            .no-files { color: #95a5a6; font-style: italic; }
+            .branch-main { background-color: #e8f5e9; padding: 2px 5px; border-radius: 3px; }
+            .branch-feature { background-color: #e3f2fd; padding: 2px 5px; border-radius: 3px; }
           </style></head>
           <body>
-            <h2>🔍 REPORTE DE COMMITS - $TODAY_PERU</h2>
-            <p class="timestamp">Generado el: $CURRENT_TIME_PERU (hora local Perú)</p>"""
+            <h2>🔍 REPORTE DE COMMITS - $TODAY_PERU</h2>"""
 
           USERS=("DianaCY-ai" "Dihani")
           EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
@@ -94,26 +87,32 @@ jobs:
                       --pretty=format:"%H|%s|%cd|%P" --date=format:'%Y-%m-%d %H:%M:%S' --all)
 
             if [ -n "$COMMITS" ]; then
-              REPORT+="<h3>✅ <strong>$USERNAME</strong> (${EMAIL})</h3>"
+              REPORT+="<h3>✅ $USERNAME ($EMAIL)</h3>"
               REPORT+="<table>"
-              REPORT+="<tr><th>Mensaje</th><th>ID Commit</th><th>Fecha/Hora</th><th>Rama</th><th>Archivos</th></tr>"
+              REPORT+="<tr><th>Commit ID</th><th>Mensaje</th><th>Fecha/Hora</th><th>Rama</th><th>Archivos Modificados</th></tr>"
               
-              # Procesar cada commit
               while IFS="|" read -r HASH MESSAGE DATE PARENTS; do
                 BRANCH=$(get_primary_branch "$HASH")
                 FILES=$(get_modified_files "$HASH")
                 
+                # Determinar clase CSS para la rama
+                if [ "$BRANCH" = "main" ]; then
+                  BRANCH_CLASS="branch-main"
+                else
+                  BRANCH_CLASS="branch-feature"
+                fi
+                
                 # Detectar si es merge commit
                 MERGE_INFO=""
                 if [ $(echo "$PARENTS" | wc -w) -gt 1 ]; then
-                  MERGE_INFO="<div class='merge-info'>(Merge commit)</div>"
+                  MERGE_INFO="<div class='merge-info'>Merge commit</div>"
                 fi
                 
                 REPORT+="<tr>"
-                REPORT+="<td><strong>${MESSAGE}</strong><br>${DATE}${MERGE_INFO}</td>"
                 REPORT+="<td><span class='commit-hash'>${HASH:0:7}</span></td>"
-                REPORT+="<td>$DATE</td>"
-                REPORT+="<td>$BRANCH</td>"
+                REPORT+="<td><strong>${MESSAGE}</strong><br>${MERGE_INFO}</td>"
+                REPORT+="<td><span class='commit-date'>${DATE}</span></td>"
+                REPORT+="<td><span class='${BRANCH_CLASS}'>${BRANCH}</span></td>"
                 REPORT+="<td><ul class='files-list'>"
                 
                 if [ -n "$FILES" ]; then
@@ -121,7 +120,7 @@ jobs:
                     REPORT+="<li>$FILE</li>"
                   done <<< "$FILES"
                 else
-                  REPORT+="<li>No se detectaron archivos modificados</li>"
+                  REPORT+="<li class='no-files'>No se detectaron archivos modificados</li>"
                 fi
                 
                 REPORT+="</ul></td></tr>"
@@ -139,7 +138,7 @@ jobs:
           cat commit_report.html >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: 📧 Enviar reporte
+      - name: 📧 Enviar reporte final
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -150,6 +149,4 @@ jobs:
           html_body: ${{ env.commit_report }}
           to: diana.carrasco@inetum.com, devdes673@gmail.com
           from: "GitHub Actions <dihani.cy@gmail.com>"
-          priority: high
-
 
