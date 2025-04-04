@@ -28,6 +28,7 @@ jobs:
         run: |
           git remote update
           git fetch --all --prune --tags --force
+          git checkout main
           git pull --all --rebase 
 
       - name: Set script permissions 
