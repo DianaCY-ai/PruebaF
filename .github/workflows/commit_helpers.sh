@@ -29,11 +29,11 @@ get_actual_branch() {
     branch=$(echo "$branch" | sed -e 's/[~^][0-9]*//g' -e 's/HEAD -> //')
     
     # Default to main if still empty or contains invalid characters
-    #if [ -z "$branch" ] || [[ "$branch" =~ [\~\^] ]]; then
-        #echo "main"
-    #else
-        #echo "$branch"
-    #fi
+    if [ -z "$branch" ] || [[ "$branch" =~ [\~\^] ]]; then
+        echo "main"
+    else
+        echo "$branch"
+    fi
 }
 
 # Function to get modified files including merge commits
