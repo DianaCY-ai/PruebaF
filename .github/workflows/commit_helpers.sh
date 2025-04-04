@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Funcion que obtiene el nombre del branch actual de un commit  
-gget_actual_branch() {
+get_actual_branch() {
     local commit_hash=$1
     local github_token="${GITHUB_TOKEN:-}"
     local fallback_branch="main"
