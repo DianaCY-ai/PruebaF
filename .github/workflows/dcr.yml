@@ -11,9 +11,9 @@ env:
 jobs:
   check_commits:
     runs-on: ubuntu-latest
-    permisiions:
-      contens: read
-      pull-request: read
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: 📥 Clone and update repository
         uses: actions/checkout@v3
