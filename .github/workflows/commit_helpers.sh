@@ -58,6 +58,19 @@ generate_html_report() {
     <style>
       /* CSS styles remain the same as previous version */
       body { font-family: Arial, sans-serif; margin: 20px; }
+      h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+      h3 { color: #3498db; margin-top: 25px; }
+      table { border-collapse: collapse; width: 100%; margin: 15px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+      th { background-color: #3498db; color: white; padding: 12px; text-align: left; }
+      td { padding: 10px; border-bottom: 1px solid #ddd; vertical-align: top; }
+      .commit-hash { font-family: monospace; color: #2980b9; font-size: 0.9em; }
+      .commit-date { color: #7f8c8d; font-size: 0.9em; }
+      .files-list { margin: 0; padding-left: 20px; list-style-type: none; }
+      .files-list li { font-family: monospace; margin: 3px 0; padding: 2px 5px; background-color: #f9f9f9; border-radius: 3px; }
+      .merge-info { color: #6a1b9a; font-weight: bold; background-color: #f3e5f5; padding: 2px 5px; border-radius: 3px; display: inline-block; }
+      .no-files { color: #95a5a6; font-style: italic; }
+      .branch-main { background-color: #e8f5e9; padding: 2px 5px; border-radius: 3px; }
+      .branch-feature { background-color: #e3f2fd; padding: 2px 5px; border-radius: 3px; }
       /* ... (keep all your existing styles) ... */
     </style>
     </head>
@@ -75,7 +88,7 @@ generate_html_report() {
         local email="${users[$username]}"
         local commits=$(git log --since="$start_time" --until="$end_time" \
                       --author="$username" --pretty=format:"%H|%s|%cd|%P" \
-                      --date=format:'%Y-%m-%d %H:%M:%S' --all)
+                      --date=format:'%H:%M:%S' --all)
         
         if [ -n "$commits" ]; then
             html+="<h3>✅ $username ($email)</h3>"
