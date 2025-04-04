@@ -82,6 +82,7 @@ jobs:
           </style></head>
           <body>
             <h2>🔍 REPORTE DE COMMITS - $TODAY_PERU</h2>"""
+            <p class="timestamp">Generado el: $CURRENT_TIME_PERU (hora local Perú)</p>"""
 
           USERS=("DianaCY-ai" "Dihani")
           EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
@@ -93,9 +94,11 @@ jobs:
                       --pretty=format:"%H|%s|%cd|%P" --date=format:'%Y-%m-%d %H:%M:%S' --all)
 
             if [ -n "$COMMITS" ]; then
-              REPORT+="<h3>✅ $USERNAME ($EMAIL)</h3><table>"
-              REPORT+="<tr><th>Commit</th><th>Rama</th><th>Archivos</th></tr>"
+              REPORT+="<h3>✅ <strong>$USERNAME</strong> (${EMAIL})</h3>"
+              REPORT+="<table>"
+              REPORT+="<tr><th>Mensaje</th><th>ID Commit</th><th>Fecha/Hora</th><th>Rama</th><th>Archivos</th></tr>"
               
+              # Procesar cada commit
               while IFS="|" read -r HASH MESSAGE DATE PARENTS; do
                 BRANCH=$(get_primary_branch "$HASH")
                 FILES=$(get_modified_files "$HASH")
@@ -108,6 +111,8 @@ jobs:
                 
                 REPORT+="<tr>"
                 REPORT+="<td><strong>${MESSAGE}</strong><br>${DATE}${MERGE_INFO}</td>"
+                REPORT+="<td><span class='commit-hash'>${HASH:0:7}</span></td>"
+                REPORT+="<td>$DATE</td>"
                 REPORT+="<td>$BRANCH</td>"
                 REPORT+="<td><ul class='files-list'>"
                 
