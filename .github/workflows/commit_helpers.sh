@@ -10,11 +10,14 @@ get_actual_branch() {
                    sed -n 's/^.checkout: moving from [^ ] to \(.*\)$/\1/p')
     
     # Second try: find branches containing this commit
-    [ -z "$branch" ] && branch=$(git branch -r --contains "$commit_hash" | \
-                                sed 's/^[ \t]*origin\///' | \
-                                grep -v "HEAD" | \
-                                head -n1)
-    
+    if [ -z "$branch"]; then 
+        branches=$(git branch -r --contains "$commit_hash" | sed 's/^[ \t]*origin\///' | grep -v "HEAD")
+        if [[ "$branches" == *"main"*]]; then
+            branch="main"
+        else
+            branch=$(echo "$branches" | head -n1)
+        fi
+    fi
     # Third try: find tags containing this commit
     [ -z "$branch" ] && branch=$(git tag --contains "$commit_hash" | head -n1)
     
@@ -26,11 +29,11 @@ get_actual_branch() {
     branch=$(echo "$branch" | sed -e 's/[~^][0-9]*//g' -e 's/HEAD -> //')
     
     # Default to main if still empty or contains invalid characters
-    if [ -z "$branch" ] || [[ "$branch" =~ [\~\^] ]]; then
-        echo "main"
-    else
-        echo "$branch"
-    fi
+    #if [ -z "$branch" ] || [[ "$branch" =~ [\~\^] ]]; then
+        #echo "main"
+    #else
+        #echo "$branch"
+    #fi
 }
 
 # Function to get modified files including merge commits
