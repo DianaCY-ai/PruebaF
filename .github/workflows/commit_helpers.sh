@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Function to get the actual branch name for a commit
+# Funcion que obtiene el nombre del branch actual de un commit  
 get_actual_branch() {
     local commit_hash=$1
 
@@ -33,12 +33,12 @@ get_actual_branch() {
 }
 
 
-# Function to get modified files including merge commits
+# Funcion para obtener archivos modificados inluidos los merge de commits
 get_modified_files() {
     local commit_hash=$1
     local files=$(git diff-tree --no-commit-id --name-only -r "$commit_hash")
     
-    # For merge commits, get all changed files between parents
+    # Para un merge commits, obtener todos los archivos modficados incluido los padres
     if git show --no-patch --format="%P" "$commit_hash" | grep -q " "; then
         files+=$'\n'$(git diff --name-only "$commit_hash"^1 "$commit_hash"^2)
     fi
@@ -46,7 +46,7 @@ get_modified_files() {
     echo "$files" | grep -v "^$" | sort | uniq
 }
 
-# Function to generate HTML report
+# Funcion para generar el reporte en HTML
 generate_html_report() {
     local today=$1
     local start_time="${today} 00:00:00 -0500"
@@ -75,15 +75,17 @@ generate_html_report() {
     </style>
     </head>
     <body>
-    <h2>🔍 COMMIT REPORT - $today</h2>"""
     
-    # User configuration
+    <h2>🔍 <strong>REPORTE DE COMMITS - $TODAY_PERU</strong></h2>
+    <p class="timestamp">Generado el: $CURRENT_TIME_PERU (hora local Perú)</p>"""
+
+    # Configuraciones de usuario
     declare -A users=(
         ["DianaCY-ai"]="diana.carrasco@inetum.com"
         ["Dihani"]="dihani.cy@gmail.com"
     )
     
-    # Process each user
+    # Procesar a cada usuario
     for username in "${!users[@]}"; do
         local email="${users[$username]}"
         local commits=$(git log --since="$start_time" --until="$end_time" \
@@ -93,7 +95,7 @@ generate_html_report() {
         if [ -n "$commits" ]; then
             html+="<h3>✅ $username ($email)</h3>"
             html+="<table>"
-            html+="<tr><th>Commit ID</th><th>Message</th><th>Date/Time</th><th>Branch</th><th>Modified Files</th></tr>"
+            html+="<tr><th>Commit ID</th><th>Mensaje</th><th>Hora</th><th>Branch</th><th>Arcivos modificados</th></tr>"
             
             while IFS="|" read -r hash message date parents; do
                 local branch=$(get_actual_branch "$hash")
@@ -114,7 +116,7 @@ generate_html_report() {
                         html+="<li>$file</li>"
                     done <<< "$files"
                 else
-                    html+="<li class='no-files'>No modified files detected</li>"
+                    html+="<li class='no-files'>No se detectaron archivos modificados</li>"
                 fi
                 
                 html+="</ul></td></tr>"
@@ -122,7 +124,7 @@ generate_html_report() {
             
             html+="</table>"
         else
-            html+="<h3>❌ $username ($email) NO commits today.</h3>"
+            html+="<h3>❌ $username ($email) NO realizó commits hoy.</h3>"
         fi
     done
     
