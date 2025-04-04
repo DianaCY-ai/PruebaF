@@ -81,7 +81,7 @@ jobs:
             .merge-info { color: #6a1b9a; font-weight: bold; }
           </style></head>
           <body>
-            <h2>🔍 REPORTE DE COMMITS - $TODAY_PERU</h2>"""
+            <h2>🔍 REPORTE DE COMMITS - $TODAY_PERU</h2>
             <p class="timestamp">Generado el: $CURRENT_TIME_PERU (hora local Perú)</p>"""
 
           USERS=("DianaCY-ai" "Dihani")
@@ -151,3 +151,5 @@ jobs:
           to: diana.carrasco@inetum.com, devdes673@gmail.com
           from: "GitHub Actions <dihani.cy@gmail.com>"
           priority: high
+
+
