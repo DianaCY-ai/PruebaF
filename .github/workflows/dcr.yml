@@ -23,9 +23,17 @@ jobs:
           export TZ=$TIMEZONE
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
+                
+      - name: Clone repository (full depth)
+        uses: actions/checkout@v3
+        with: |
+          fetch-depth: 0
+
+      - name: Fetch all branches and tags
+        run: |
           git remote update
           git fetch --all --prune --tags --force
-          git pull --all --rebase
+          git pull --all --rebase 
 
       - name: Set script permissions 
         run: |
@@ -61,4 +69,3 @@ jobs:
           html_body: ${{ env.commit_report }}
           to: diana.carrasco@inetum.com, devdes673@gmail.com
           from: "GitHub Actions <dihani.cy@gmail.com>"
-          priority: high
