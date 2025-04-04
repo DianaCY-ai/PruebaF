@@ -27,6 +27,10 @@ jobs:
           git fetch --all --prune --tags --force
           git pull --all --rebase
 
+      - name: Set script permissions 
+        run: |
+          chmod +x ./commit_helpers.sh    
+
       - name: 📊 Generate commit report
         id: generate-report
         run: |
