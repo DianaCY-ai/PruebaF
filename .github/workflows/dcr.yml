@@ -5,148 +5,56 @@ on:
     - cron: '59 4 * * *'  # 23:59:59 Perú (04:59:59 UTC)
   workflow_dispatch:
 
+env:
+  TIMEZONE: 'America/Lima'
+
 jobs:
   check_commits:
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 Clonar y actualizar repositorio
+      - name: 📥 Clone and update repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Obtener todo el historial
+          fetch-depth: 0  # Full history
 
-      - name: 🛠 Configurar entorno
+      - name: 🛠 Setup environment
         run: |
-          sudo timedatectl set-timezone America/Lima
-          export TZ='America/Lima'
+          sudo timedatectl set-timezone $TIMEZONE
+          export TZ=$TIMEZONE
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
+          git remote update
           git fetch --all --prune --tags --force
           git pull --all --rebase
 
-      - name: 📊 Generar reporte completo MEJORADO
+      - name: 📊 Generate commit report
         id: generate-report
         run: |
-          # Configuración de fechas
-          TODAY_PERU=$(date +"%Y-%m-%d")
-          START_TIME="${TODAY_PERU} 00:00:00 -0500"
-          END_TIME="${TODAY_PERU} 23:59:59 -0500"
-          echo "REPORT_DATE=${TODAY_PERU}" >> $GITHUB_ENV
-
-          # Función mejorada para obtener archivos modificados
-          get_modified_files() {
-            local commit_hash=$1
-            # Archivos modificados en el commit
-            local files=$(git diff-tree --no-commit-id --name-only -r "$commit_hash")
-            
-            # Si es un merge commit, obtener archivos del merge
-            if git show --no-patch --format="%P" "$commit_hash" | grep -q " "; then
-              files+=$'\n'$(git diff --name-only "$commit_hash"^1 "$commit_hash"^2)
-            fi
-            
-            # Eliminar duplicados y líneas vacías
-            echo "$files" | grep -v "^$" | sort | uniq
-          }
-
-          # Función para obtener rama principal
-          get_primary_branch() {
-            local commit_hash=$1
-            local branch=$(git branch -r --contains "$commit_hash" | sed 's/^[ \t]*origin\///' | grep -v "HEAD" | head -n1)
-            
-            [ -z "$branch" ] && branch=$(git log -n 1 --pretty=format:"%D" "$commit_hash" | grep -o "origin/[^ ,]*" | sed 's/origin\///' | head -n1)
-            echo "${branch:-main}" | sed -e 's/[~^][0-9]*//g' -e 's/HEAD -> //'
-          }
-
-          # Generar HTML con todos los elementos solicitados
-          REPORT="""<html>
-          <head><style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-            h3 { color: #3498db; margin-top: 25px; }
-            table { border-collapse: collapse; width: 100%; margin: 15px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-            th { background-color: #3498db; color: white; padding: 12px; text-align: left; }
-            td { padding: 10px; border-bottom: 1px solid #ddd; vertical-align: top; }
-            .commit-hash { font-family: monospace; color: #2980b9; font-size: 0.9em; }
-            .commit-date { color: #7f8c8d; font-size: 0.9em; }
-            .files-list { margin: 0; padding-left: 20px; list-style-type: none; }
-            .files-list li { font-family: monospace; margin: 3px 0; padding: 2px 5px; background-color: #f9f9f9; border-radius: 3px; }
-            .merge-info { color: #6a1b9a; font-weight: bold; background-color: #f3e5f5; padding: 2px 5px; border-radius: 3px; display: inline-block; }
-            .no-files { color: #95a5a6; font-style: italic; }
-            .branch-main { background-color: #e8f5e9; padding: 2px 5px; border-radius: 3px; }
-            .branch-feature { background-color: #e3f2fd; padding: 2px 5px; border-radius: 3px; }
-          </style></head>
-          <body>
-            <h2>🔍 REPORTE DE COMMITS - $TODAY_PERU</h2>"""
-
-          USERS=("DianaCY-ai" "Dihani")
-          EMAILS=("diana.carrasco@inetum.com" "dihani.cy@gmail.com")
-
-          for i in "${!USERS[@]}"; do
-            USERNAME="${USERS[$i]}"
-            EMAIL="${EMAILS[$i]}"
-            COMMITS=$(git log --since="$START_TIME" --until="$END_TIME" --author="$USERNAME" \
-                      --pretty=format:"%H|%s|%cd|%P" --date=format:'%Y-%m-%d %H:%M:%S' --all)
-
-            if [ -n "$COMMITS" ]; then
-              REPORT+="<h3>✅ $USERNAME ($EMAIL)</h3>"
-              REPORT+="<table>"
-              REPORT+="<tr><th>Commit ID</th><th>Mensaje</th><th>Fecha/Hora</th><th>Rama</th><th>Archivos Modificados</th></tr>"
-              
-              while IFS="|" read -r HASH MESSAGE DATE PARENTS; do
-                BRANCH=$(get_primary_branch "$HASH")
-                FILES=$(get_modified_files "$HASH")
-                
-                # Determinar clase CSS para la rama
-                if [ "$BRANCH" = "main" ]; then
-                  BRANCH_CLASS="branch-main"
-                else
-                  BRANCH_CLASS="branch-feature"
-                fi
-                
-                # Detectar si es merge commit
-                MERGE_INFO=""
-                if [ $(echo "$PARENTS" | wc -w) -gt 1 ]; then
-                  MERGE_INFO="<div class='merge-info'>Merge commit</div>"
-                fi
-                
-                REPORT+="<tr>"
-                REPORT+="<td><span class='commit-hash'>${HASH:0:7}</span></td>"
-                REPORT+="<td><strong>${MESSAGE}</strong><br>${MERGE_INFO}</td>"
-                REPORT+="<td><span class='commit-date'>${DATE}</span></td>"
-                REPORT+="<td><span class='${BRANCH_CLASS}'>${BRANCH}</span></td>"
-                REPORT+="<td><ul class='files-list'>"
-                
-                if [ -n "$FILES" ]; then
-                  while read -r FILE; do
-                    REPORT+="<li>$FILE</li>"
-                  done <<< "$FILES"
-                else
-                  REPORT+="<li class='no-files'>No se detectaron archivos modificados</li>"
-                fi
-                
-                REPORT+="</ul></td></tr>"
-              done <<< "$COMMITS"
-              
-              REPORT+="</table>"
-            else
-              REPORT+="<h3>❌ $USERNAME ($EMAIL) NO realizó commits hoy.</h3>"
-            fi
-          done
-
-          REPORT+="</body></html>"
+          # Load helper functions
+          source ./commit_helpers.sh
+          
+          # Setup reporting
+          TODAY=$(date +"%Y-%m-%d")
+          echo "REPORT_DATE=${TODAY}" >> $GITHUB_ENV
+          
+          # Generate HTML report
+          REPORT=$(generate_html_report "$TODAY")
+          
+          # Save report
           echo "$REPORT" > commit_report.html
           echo "commit_report<<EOF" >> $GITHUB_ENV
           cat commit_report.html >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: 📧 Enviar reporte final
+      - name: 📧 Send email report
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: dihani.cy@gmail.com
           password: ${{ secrets.GMAIL_PASSWORD }}
-          subject: "📢 Reporte de Commits - ${{ env.REPORT_DATE }}"
+          subject: "📢 Commit Report - ${{ env.REPORT_DATE }}"
           html_body: ${{ env.commit_report }}
           to: diana.carrasco@inetum.com, devdes673@gmail.com
           from: "GitHub Actions <dihani.cy@gmail.com>"
-
+          priority: high
