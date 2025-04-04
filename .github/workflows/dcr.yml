@@ -44,6 +44,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository}}
         run: |
+          #instalar jq
+          sudo apt-get install -y jq
           # Load helper functions
           source .github/workflows/commit_helpers.sh
           
