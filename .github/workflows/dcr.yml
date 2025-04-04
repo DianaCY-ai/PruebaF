@@ -29,13 +29,13 @@ jobs:
 
       - name: Set script permissions 
         run: |
-          chmod +x ./commit_helpers.sh    
+          chmod +x .github/workflows/commit_helpers.sh   
 
       - name: 📊 Generate commit report
         id: generate-report
         run: |
           # Load helper functions
-          source ./commit_helpers.sh
+          source .github/workflows/commit_helpers.sh
           
           # Setup reporting
           TODAY=$(date +"%Y-%m-%d")
