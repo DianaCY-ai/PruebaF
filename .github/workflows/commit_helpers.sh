@@ -4,34 +4,30 @@
 get_actual_branch() {
     local commit_hash=$1
 
-    # 1. Intento: Buscar en el reflog (menos confiable en CI)
-    local branch=$(git reflog --format='%gs' | \
-                   grep -m1 "$commit_hash" | \
-                   sed -n 's/^.checkout: moving from [^ ] to \(.*\)$/\1/p')
+    # 1. Priorizar ramas principales (main/master) usando first-parent
+    local branch=$(git log --first-parent --pretty=format:"%D" "$commit_hash" -1 | \
+                   grep -oE "origin/(main|master|brDihani)" | \
+                   sed 's/origin\///' | \
+                   head -n1)
 
-    # 2. Intento: Buscar ramas que contengan el commit (priorizando main)
+    # 2. Si no se encontró, buscar ramas que contengan el commit (sin checkout)
     if [ -z "$branch" ]; then
-        branches=$(git branch -r --contains "$commit_hash" | sed 's/^[ \t]*origin\///' | grep -v "HEAD")
-        if [[ "$branches" == "main" ]]; then
-            branch="main"
-        else
-            branch=$(echo "$branches" | head -n1)
-        fi
+        branch=$(git branch -r --contains "$commit_hash" | \
+                sed 's/^[ \t]*origin\///' | \
+                grep -v "HEAD" | \
+                awk '{ if ($0 == "main") print; }' | \
+                head -n1)
     fi
 
-    # 3. Intento: Buscar tags (solo si aplica)
-    [ -z "$branch" ] && branch=$(git tag --contains "$commit_hash" | head -n1)
+    # 3. Si sigue vacío, usar el nombre de referencia más cercano
+    [ -z "$branch" ] && branch=$(git name-rev --name-only --exclude="tags/" --refs="refs/heads/" "$commit_hash" | \
+                                sed 's/^origin\///' | \
+                                cut -d/ -f1)
 
-    # 4. Fallback: Usar nombre de referencia
-    [ -z "$branch" ] && branch=$(git name-rev --name-only --exclude="tags/*" "$commit_hash" | \
-                                sed 's/^remotes\/origin\///')
-
-    # Limpieza final
+    # 4. Limpiar y asegurar rama válida
     branch=$(echo "$branch" | sed -e 's/[~^][0-9]*//g' -e 's/HEAD -> //')
-    
-    echo "${branch:-main}"  # Default a main si todo falla
+    echo "${branch:-main}"
 }
-
 
 # Funcion para obtener archivos modificados inluidos los merge de commits
 get_modified_files() {
@@ -51,7 +47,8 @@ generate_html_report() {
     local today=$1
     local start_time="${today} 00:00:00 -0500"
     local end_time="${today} 23:59:59 -0500"
-    
+    local CURRENT_TIME_PERU=$(date +"%Y-%m-%d %H:%M:%S %z")
+
     # HTML Header
     local html="""<html>
     <head>
@@ -76,7 +73,7 @@ generate_html_report() {
     </head>
     <body>
     
-    <h2>🔍 <strong>REPORTE DE COMMITS - $TODAY_PERU</strong></h2>
+    <h2>🔍 <strong>REPORTE DE COMMITS - $today</strong></h2>
     <p class="timestamp">Generado el: $CURRENT_TIME_PERU (hora local Perú)</p>"""
 
     # Configuraciones de usuario
