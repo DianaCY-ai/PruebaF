@@ -2,7 +2,7 @@ name: Enhanced Daily Commit Report
 
 on:
   schedule:
-    - cron: '59 4 * * *'  # 23:59:59 Perú (04:59:59 UTC)
+    - cron: '30 4 * * *'  # 23:30:00 hora Perú (UTC-5)
   workflow_dispatch:
 
 env:
@@ -71,5 +71,5 @@ jobs:
           password: ${{ secrets.GMAIL_PASSWORD }}
           subject: "📢 Commit Report - ${{ env.REPORT_DATE }}"
           html_body: ${{ env.commit_report }}
-          to: diana.carrasco@inetum.com, devdes673@gmail.com
+          to: diana.carrasco@inetum.com, devdes673@gmail.com, goyko.obrenovich@inetum.com
           from: "GitHub Actions <dihani.cy@gmail.com>"
