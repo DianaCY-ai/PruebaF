@@ -12,7 +12,7 @@ get_actual_branch() {
     # Second try: find branches containing this commit
     if [ -z "$branch"]; then 
         branches=$(git branch -r --contains "$commit_hash" | sed 's/^[ \t]*origin\///' | grep -v "HEAD")
-        if [[ "$branches" == *"main"*]]; then
+        if [[ "$branches" == *"main"* ]]; then
             branch="main"
         else
             branch=$(echo "$branches" | head -n1)
