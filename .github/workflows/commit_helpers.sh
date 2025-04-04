@@ -1,32 +1,80 @@
 #!/bin/bash
 
 # Funcion que obtiene el nombre del branch actual de un commit  
-get_actual_branch() {
+gget_actual_branch() {
     local commit_hash=$1
+    local github_token="${GITHUB_TOKEN:-}"
+    local fallback_branch="main"
+    local branch=""
 
-    # 1. Priorizar ramas principales (main/master) usando first-parent
-    local branch=$(git log --first-parent --pretty=format:"%D" "$commit_hash" -1 | \
-                   grep -oE "origin/(main|master|brDihani)" | \
-                   sed 's/origin\///' | \
-                   head -n1)
+    # --- 1. Verificar si es un merge commit usando Git local ---
+    if git show --format=%P -q "$commit_hash" | grep -q " "; then
+        # Intentar determinar la rama destino usando GitHub API para merges
+        if [ -n "$github_token" ]; then
+            local merge_data=$(curl -s \
+                -H "Authorization: Bearer $github_token" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$commit_hash/pulls")
+            
+            branch=$(echo "$merge_data" | jq -r '.[0].base.ref // empty')
+            
+            if [ -n "$branch" ]; then
+                echo "$branch"
+                return
+            fi
+        fi
 
-    # 2. Si no se encontró, buscar ramas que contengan el commit (sin checkout)
-    if [ -z "$branch" ]; then
-        branch=$(git branch -r --contains "$commit_hash" | \
-                sed 's/^[ \t]*origin\///' | \
-                grep -v "HEAD" | \
-                awk '{ if ($0 == "main") print; }' | \
+        # Fallback: Usar el primer padre del merge
+        branch=$(git log --first-parent --pretty=format:"%D" "$commit_hash^1" -1 | \
+                grep -oE "origin/(main|master|brDihani|[^/]+)" | \
+                sed 's/origin\///' | \
                 head -n1)
     fi
 
-    # 3. Si sigue vacío, usar el nombre de referencia más cercano
-    [ -z "$branch" ] && branch=$(git name-rev --name-only --exclude="tags/" --refs="refs/heads/" "$commit_hash" | \
-                                sed 's/^origin\///' | \
-                                cut -d/ -f1)
+    # --- 2. Usar GitHub API para commits regulares ---
+    if [ -z "$branch" ] && [ -n "$github_token" ]; then
+        local api_response=$(curl -s \
+            -H "Authorization: Bearer $github_token" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$commit_hash")
 
-    # 4. Limpiar y asegurar rama válida
-    branch=$(echo "$branch" | sed -e 's/[~^][0-9]*//g' -e 's/HEAD -> //')
-    echo "${branch:-main}"
+        # Verificar errores en la API
+        if [ -n "$api_response" ] && ! echo "$api_response" | jq -e '.message' >/dev/null; then
+            branch=$(echo "$api_response" | \
+                    jq -r '(.parents[0].html_url // "") | match("branch=(.*?)") | .captures[0].string' | \
+                    grep -E "main|master|brDihani|" | \
+                    head -n1)
+        fi
+    fi
+
+    # --- 3. Fallback a Git local ---
+    if [ -z "$branch" ]; then
+        # Método optimizado para repositorios grandes
+        branch=$(git log --first-parent --pretty=format:"%D" "$commit_hash" -1 | \
+                grep -oE "origin/(main|master|brDihani|[^/]+)" | \
+                sed 's/origin\///' | \
+                head -n1)
+
+        # Último recurso: buscar en ramas remotas
+        if [ -z "$branch" ]; then
+            branch=$(git branch -r --contains "$commit_hash" | \
+                    sed 's/^[ \t]*origin\///' | \
+                    grep -v "HEAD" | \
+                    awk '{ if ($0 == "main" || $0 == "master") print; else a[n++]=$0 } END {for (i=0;i<n;i++) print a[i]}' | \
+                    head -n1)
+        fi
+    fi
+
+    # --- Manejo final ---
+    # Limpieza y validación
+    branch=$(echo "$branch" | sed -e 's/[~^][0-9]*//g' -e 's/HEAD -> //' -e 's/"//g')
+    
+    # Validar nombre de rama seguro
+    if [ -z "$branch" ] || [[ ! "$branch" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        branch="$fallback_branch"
+    fi
+
+    echo "$branch"
 }
 
 # Funcion para obtener archivos modificados inluidos los merge de commits
