@@ -24,11 +24,11 @@ jobs:
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
        
-      - name: Fetch all branches and tags
+      - name: Fetch all branches (optimizado)
         run: |
+          git config remote.origin.fetch "+refs/heads/:refs/remotes/origin/"
+          git fetch --force --tags --prune --prune-tags --progress
           git remote update
-          git fetch --all --prune --tags --force
-          git pull --all --rebase 
 
       - name: Set script permissions 
         run: |
